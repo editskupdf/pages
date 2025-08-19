@@ -83,26 +83,54 @@
       border-radius: 50%;
       padding: 4px 8px;
     }
-    button {
+    button, input[type="file"] {
       margin-top: 15px;
-      padding: 12px 25px;
+      padding: 14px 28px;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       background: #3ae2ff;
       color: #000;
-      font-size: 16px;
+      font-size: 18px;
       font-weight: bold;
       cursor: pointer;
       transition: background 0.2s;
     }
-    button:hover {
+    button:hover, input[type="file"]:hover {
       background: #1ec8e2;
+    }
+    input[type="file"] {
+      background: #222;
+      color: #fff;
     }
     .back-btn {
       margin-top: 25px;
       display: inline-block;
       background: #ff4747;
       color: white;
+    }
+    /* Merge file list styling */
+    .file-list {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .file-item {
+      background: #1a1a1a;
+      padding: 12px 18px;
+      margin: 6px 0;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+    }
+    .total-pages {
+      margin-top: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #3ae2ff;
     }
   </style>
 </head>
@@ -136,7 +164,8 @@
   <div id="mergeSection" class="hidden section">
     <h2>🧩 Merge PDFs</h2>
     <input type="file" id="mergePdfInput" accept="application/pdf" multiple>
-    <div id="mergePagesPreview" class="pdf-pages"></div>
+    <div id="mergeFileList" class="file-list"></div>
+    <div id="mergeTotalPages" class="total-pages"></div>
     <button onclick="mergePdfs()">Merge & Download</button>
     <br>
     <button class="back-btn" onclick="goBack()">⬅ Back</button>
@@ -153,6 +182,8 @@
       document.getElementById("removeSection").classList.add("hidden");
       document.getElementById("mergeSection").classList.add("hidden");
       document.getElementById("mainOptions").classList.remove("hidden");
+      document.getElementById("mergeFileList").innerHTML = "";
+      document.getElementById("mergeTotalPages").innerHTML = "";
     }
 
     // Render PDF to images for preview
@@ -212,22 +243,41 @@
 
     // Merge PDFs
     let mergeFiles = [];
-    document.getElementById("mergePdfInput").addEventListener("change", (e) => {
+    document.getElementById("mergePdfInput").addEventListener("change", async (e) => {
       mergeFiles = Array.from(e.target.files).slice(0, 10);
-      document.getElementById("mergePagesPreview").innerHTML = mergeFiles.map(f => `<p>${f.name} (${Math.round(f.size/1024)} KB)</p>`).join("");
+      const listContainer = document.getElementById("mergeFileList");
+      listContainer.innerHTML = "";
+      let totalPages = 0;
+
+      for (const file of mergeFiles) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(new Uint8Array(arrayBuffer)).promise;
+        const numPages = pdf.numPages;
+        totalPages += numPages;
+
+        const item = document.createElement("div");
+        item.className = "file-item";
+        item.innerHTML = `<span>${file.name}</span><span>${numPages} pages</span>`;
+        listContainer.appendChild(item);
+      }
+      document.getElementById("mergeTotalPages").innerText = `Total Pages: ${totalPages}`;
     });
 
     async function mergePdfs() {
       if (mergeFiles.length === 0) return;
       const mergedPdf = await PDFLib.PDFDocument.create();
+      let totalPages = 0;
+
       for (const file of mergeFiles) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
         const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
         copiedPages.forEach(p => mergedPdf.addPage(p));
+        totalPages += copiedPages.length;
       }
       const pdfBytes = await mergedPdf.save();
       download(pdfBytes, "merged.pdf");
+      document.getElementById("mergeTotalPages").innerText = `Merged PDF Total Pages: ${totalPages}`;
     }
 
     function download(pdfBytes, filename) {
